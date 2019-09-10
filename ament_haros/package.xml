@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="2">
+  <name>ament_haros</name>
+  <version>0.0.1</version>
+  <description>
+    The ability to perform static code analysis using HAROS
+    and generate xUnit test result files.
+  </description>
+  <maintainer email="v-krichenbauer7715@esol.co.jp">Max Krichenbauer</maintainer>
+  <license>Apache License 2.0</license>
+
+  <!-- OVERRIDE: Using a manual download of HAROS for testing
+  <exec_depend>haros</exec_depend>
+  <exec_depend>haros-plugins</exec_depend>
+  -->
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

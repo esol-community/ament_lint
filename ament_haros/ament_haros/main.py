@@ -17,13 +17,55 @@
 import argparse
 from collections import defaultdict
 import os
-from shutil import which
+from shutil import which, rmtree
 import subprocess
 import sys
 import time
-from xml.etree import ElementTree
-from xml.sax.saxutils import escape
-from xml.sax.saxutils import quoteattr
+import json
+#from xml.etree import ElementTree
+#from xml.sax.saxutils import escape
+#from xml.sax.saxutils import quoteattr
+from xml.etree.cElementTree import ElementTree
+
+def find_ros_packages(path, as_stack = False):
+    """
+    Find ROS packages inside a folder.
+    :param path: [str] File system path to search.
+    :returns: [dict] Dictionary of [str]package_name -> [str]package_path.
+    """
+    resources = {} # the packages
+    basename = os.path.basename
+    for d, dirs, files in os.walk(path, topdown=True, followlinks=True):
+        if ('CATKIN_IGNORE' in files or
+            'COLCON_IGNORE' in files or
+            'AMENT_IGNORE' in files
+        ):
+            del dirs[:]
+            continue  # leaf
+        if 'package.xml' in files:
+            # parse package.xml and decide if it matches the search criteria
+            root = ElementTree(None, os.path.join(d, 'package.xml'))
+            is_metapackage = root.find('./export/metapackage') is not None
+            if not is_metapackage:
+                resource_name = root.findtext('name').strip(' \n\r\t')
+                if resource_name not in resources:
+                    resources[resource_name] = d
+                del dirs[:]
+                continue  # leaf
+        if 'manifest.xml' in files:
+            # resource_name = basename(d)
+            # if resource_name not in resources:
+            #     resources[resource_name] = d
+            del dirs[:]
+            continue  # leaf
+        if 'rospack_nosubdirs' in files:
+            del dirs[:]
+            continue   # leaf
+        # remove hidden dirs (esp. .svn/.git)
+        [dirs.remove(di) for di in dirs if di[0] == '.']
+    # ^ for d, dirs, files in os.walk(path, topdown=True, followlinks=True)
+    return resources
+# ^ def find_ros_packages(path)
 
 def main(argv=sys.argv[1:]):
     extensions = ['c', 'cc', 'cpp', 'cxx', 'h', 'hh', 'hpp', 'hxx']
@@ -50,6 +92,18 @@ def main(argv=sys.argv[1:]):
         help='Generate a xunit compliant XML file')
     args = parser.parse_args(argv)
 
+    haros_tmp_dir = '/tmp/ament_haros'
+    try:
+        if os.path.exists(haros_tmp_dir):
+            rmtree(haros_tmp_dir)
+        os.mkdir(haros_tmp_dir)
+        os.mkdir(haros_tmp_dir + '/haros_home')
+        os.mkdir(haros_tmp_dir + '/haros_data')
+    except:
+        print("Trying to create a HAROS tmp folders failed.")
+        return 1
+    #
+
     #haros_bin = which('haros')
     #if not haros_bin:
     #    print("Could not find 'haros' executable", file=sys.stderr)
@@ -57,36 +111,73 @@ def main(argv=sys.argv[1:]):
     #cmd = [haros_bin]
     # ^ TODO: the official release of HAROS is not yet compatible with ROS2/ament
     # work spaces. So we'll download a different version for it.
-
+    download_cmd = [
+        "wget",
+        "-O",
+        haros_tmp_dir + "/haros_ros2-support.zip",
+        "https://github.com/esol-community/haros/archive/ros2-support.zip"
+    ]
     try:
-        p = subprocess.Popen(["rm",
-                              "-rf",
-                              "/tmp/haros*",
-                              ";",
-                              "wget",
-                              "-O",
-                              "/tmp/haros_ros2-support.zip",
-                              "https://github.com/esol-community/haros/archive/ros2-support.zip",
-                              ";",
-                              "unzip",
-                              "/tmp/haros_ros2-support.zip"],
-                              stderr=subprocess.PIPE)
+        p = subprocess.Popen(download_cmd, stderr=subprocess.PIPE)
         output = p.communicate()[1]
     except subprocess.CalledProcessError as e:
         print("Trying to download HAROS failed with error code %d: %s" %
               (e.returncode, e), file=sys.stderr)
         return 1
+    #
+    unzip_cmd = [
+        "unzip",
+        "-qq",
+        haros_tmp_dir + "/haros_ros2-support.zip",
+        "-d",
+        haros_tmp_dir
+    ]
+    try:
+        p = subprocess.Popen(unzip_cmd, stderr=subprocess.PIPE)
+        output = p.communicate()[1]
+    except subprocess.CalledProcessError as e:
+        print("Trying to unzip HAROS failed with error code %d: %s" %
+              (e.returncode, e), file=sys.stderr)
+        return 1
+    #
+    cmd = [which('python2'), haros_tmp_dir + '/haros-ros2-support/haros-runner.py']
+    workspace_dir = os.path.abspath(args.paths[0])
+    # If we were pointed at a package folder,
+    # find the ROS2 workspace root.
+    try:
+        workspace_dir = workspace_dir[0:workspace_dir.rindex('/src/')]
+    except ValueError:
+        # Check if we are already in the workspace root directory.
+        if os.path.exists(workspace_dir + '/src/') == False:
+            print("Failed to detect ROS workspace root folder",
+                  file=sys.stderr)
+            return 1
+        # else: workspace_dir is already the workspace root directory
+    #
+    packages = find_ros_packages(os.path.abspath(args.paths[0]))
+    if len(packages) == 0:
+        print("Failed to find any ROS packages to analyze",
+              file=sys.stderr)
+        return 1
+    #
+    # Generate HAROS project.yaml file to direct HAROS to the package/project
+    with open(haros_tmp_dir + '/ament_haros_project.yaml', "w") as f:
+        f.write('%YAML 1.1\n')
+        f.write('---\n')
+        f.write('project: ament_haros_project\n')
+        f.write('packages:\n')
+        for p in packages:
+            f.write('    - %s\n' % p)
+        #
+    #
 
-    cmd = [which('python2'), '/tmp/haros-ros2-support/haros-runner.py']
-
-    # OVERRIDE: use local HAROS repo
-    # subprocess.Popen([which('export'), 'ROS_WORKSPACE="/home/osboxes/ros/"'])
-    # cmd = [which('python2'), '/home/osboxes/haros/haros-runner.py']
-
-    #cmd.extend(['--junit-xml-output'])
-    cmd.extend(['--cwd', args.paths[0]]) # TODO: Support multiple paths.
-    cmd.extend(['full'])
-    print(*cmd)
+    cmd.extend(['--cwd', workspace_dir]) # TODO: Support multiple paths.
+    cmd.extend(['--home', haros_tmp_dir + '/haros_home'])
+    cmd.extend(['analyse'])
+    cmd.extend(['--project-file', haros_tmp_dir + '/ament_haros_project.yaml'])
+    cmd.extend(['--data-dir', haros_tmp_dir + '/haros_data'])
+    cmd.extend(['--junit-xml-output'])
+    # print(*cmd)
     try:
         p = subprocess.Popen(cmd, stderr=subprocess.PIPE)
         output = p.communicate()[1]
@@ -97,10 +188,14 @@ def main(argv=sys.argv[1:]):
 
     print(output)
 
+    # Read the resulting JSON output files
+    with open(haros_tmp_dir + '/haros_data/data/ament_haros_project/summary.json') as f:
+        summary = json.load(f)
+
     # TODO: output errors
     # TODO: output summary
     # TODO: return 1 if any violations were found, 0 if none were found
-    error_count = 1
+    error_count = summary["issues"]["total"]
     if not error_count:
         print('No problems found')
         rc = 0

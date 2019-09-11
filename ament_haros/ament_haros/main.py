@@ -179,23 +179,41 @@ def main(argv=sys.argv[1:]):
     cmd.extend(['--junit-xml-output'])
     # print(*cmd)
     try:
-        p = subprocess.Popen(cmd, stderr=subprocess.PIPE)
-        output = p.communicate()[1]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = p.communicate()
     except subprocess.CalledProcessError as e:
         print("The invocation of 'haros' failed with error code %d: %s" %
               (e.returncode, e), file=sys.stderr)
         return 1
-
-    print(output)
+    #
 
     # Read the resulting JSON output files
-    with open(haros_tmp_dir + '/haros_data/data/ament_haros_project/summary.json') as f:
-        summary = json.load(f)
+    #with open(haros_tmp_dir + '/haros_data/data/ament_haros_project/summary.json') as f:
+    #    summary = json.load(f)
+    #error_count = summary["issues"]["total"]
 
-    # TODO: output errors
-    # TODO: output summary
-    # TODO: return 1 if any violations were found, 0 if none were found
-    error_count = summary["issues"]["total"]
+    # Read the resulting XML output files
+    error_count = 0
+    for p in packages:
+        tree = ElementTree(None, haros_tmp_dir + '/haros_data/data/' + p + '.xml')
+        root = tree.getroot()
+        testsuite = root[0]
+        for testcase in testsuite:
+            id = testcase.attrib.get('id', 'UNKNOWN ISSUE')
+            failure = testcase[0]
+            severity = failure.attrib.get('type', 'FAILURE')
+            data = failure.text.split('\n')
+            msg = data[1]
+            category = data[2][10:] # "Category: [...]"
+            file = data[3][6:] # "File: [...]"
+            line = data[4][6:] # "Line: [...]"
+            print('[%s:%s]: (%s: %s) %s' % (file, line, severity, id, msg),
+                  file=sys.stderr)
+            error_count += 1
+        # ^ for testcase in testsuite
+    # ^ for p in packages
+
+    # output summary
     if not error_count:
         print('No problems found')
         rc = 0
@@ -203,29 +221,14 @@ def main(argv=sys.argv[1:]):
         print('%d errors' % error_count, file=sys.stderr)
         rc = 1
 
+    if args.xunit_file:
+        for p in packages:
+            os.rename(haros_tmp_dir + '/haros_data/data/' + p + '.xml',
+                      args.xunit_file + '/' + p + '.xml')
+        #
+    #
     return rc
-
-
-def get_files(paths, extensions):
-    files = []
-    for path in paths:
-        if os.path.isdir(path):
-            for dirpath, dirnames, filenames in os.walk(path):
-                if 'AMENT_IGNORE' in filenames:
-                    dirnames[:] = []
-                    continue
-                # ignore folder starting with . or _
-                dirnames[:] = [d for d in dirnames if d[0] not in ['.', '_']]
-                dirnames.sort()
-
-                # select files by extension
-                for filename in sorted(filenames):
-                    _, ext = os.path.splitext(filename)
-                    if ext in ['.%s' % e for e in extensions]:
-                        files.append(os.path.join(dirpath, filename))
-        if os.path.isfile(path):
-            files.append(path)
-    return [os.path.normpath(f) for f in files]
+# ^ def main()
 
 if __name__ == '__main__':
     sys.exit(main())

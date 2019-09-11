@@ -23,6 +23,7 @@ file(GLOB_RECURSE _source_files FOLLOW_SYMLINKS
   "*.hh"
   "*.hpp"
   "*.hxx"
+  "*.py"
 )
 if(_source_files)
   message(STATUS "Added test 'haros' to perform static code analysis on C / C++ code")

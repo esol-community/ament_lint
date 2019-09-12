@@ -17,7 +17,7 @@
 import argparse
 from collections import defaultdict
 import os
-from shutil import which, rmtree
+from shutil import which, rmtree, copyfile
 import subprocess
 import sys
 import time
@@ -115,7 +115,7 @@ def main(argv=sys.argv[1:]):
         "wget",
         "-O",
         haros_tmp_dir + "/haros_ros2-support.zip",
-        "https://github.com/esol-community/haros/archive/ros2-support.zip"
+        "https://github.com/esol-community/haros/archive/ros2-support-with-junitxml-improvements.zip"
     ]
     try:
         p = subprocess.Popen(download_cmd, stderr=subprocess.PIPE)
@@ -140,7 +140,7 @@ def main(argv=sys.argv[1:]):
               (e.returncode, e), file=sys.stderr)
         return 1
     #
-    cmd = [which('python2'), haros_tmp_dir + '/haros-ros2-support/haros-runner.py']
+    cmd = [which('python2'), haros_tmp_dir + '/haros-ros2-support-with-junitxml-improvements/haros-runner.py']
     workspace_dir = os.path.abspath(args.paths[0])
     # If we were pointed at a package folder,
     # find the ROS2 workspace root.
@@ -194,10 +194,9 @@ def main(argv=sys.argv[1:]):
 
     # Read the resulting XML output files
     error_count = 0
-    for p in packages:
-        tree = ElementTree(None, haros_tmp_dir + '/haros_data/data/' + p + '.xml')
-        root = tree.getroot()
-        testsuite = root[0]
+    tree = ElementTree(None, haros_tmp_dir + '/haros_data/data/ament_haros_project/compliance/ament_haros_project.xml')
+    testsuites = tree.getroot()
+    for testsuite in testsuites:
         for testcase in testsuite:
             id = testcase.attrib.get('id', 'UNKNOWN ISSUE')
             failure = testcase[0]
@@ -211,7 +210,7 @@ def main(argv=sys.argv[1:]):
                   file=sys.stderr)
             error_count += 1
         # ^ for testcase in testsuite
-    # ^ for p in packages
+    # ^ for testsuite in root[0]
 
     # output summary
     if not error_count:
@@ -222,10 +221,8 @@ def main(argv=sys.argv[1:]):
         rc = 1
 
     if args.xunit_file:
-        for p in packages:
-            os.rename(haros_tmp_dir + '/haros_data/data/' + p + '.xml',
-                      args.xunit_file + '/' + p + '.xml')
-        #
+        copyfile(haros_tmp_dir + '/haros_data/data/ament_haros_project/compliance/ament_haros_project.xml',
+                 args.xunit_file)
     #
     return rc
 # ^ def main()

@@ -26,7 +26,7 @@ file(GLOB_RECURSE _source_files FOLLOW_SYMLINKS
   "*.py"
 )
 if(_source_files)
-  message(STATUS "Added test 'haros' to perform static code analysis on C / C++ code")
+  message(STATUS "Added test 'haros' to perform static code analysis")
 
   # Get include paths for added targets
   set(_all_include_dirs "")

@@ -187,14 +187,16 @@ def main(argv=sys.argv[1:]):
         return 1
     #
 
-    # Read the resulting JSON output files
-    #with open(haros_tmp_dir + '/haros_data/data/ament_haros_project/summary.json') as f:
-    #    summary = json.load(f)
-    #error_count = summary["issues"]["total"]
+    # Check if the output XML file is written
+    xunit_file = haros_tmp_dir + '/haros_data/data/ament_haros_project/compliance/ament_haros_project.xml'
+    if not os.path.exists(xunit_file):
+        print("HAROS failed to write xUnit (XML) output file")
+        return 1
+    #
 
     # Read the resulting XML output files
     error_count = 0
-    tree = ElementTree(None, haros_tmp_dir + '/haros_data/data/ament_haros_project/compliance/ament_haros_project.xml')
+    tree = ElementTree(None, xunit_file)
     testsuites = tree.getroot()
     for testsuite in testsuites:
         for testcase in testsuite:
@@ -221,8 +223,7 @@ def main(argv=sys.argv[1:]):
         rc = 1
 
     if args.xunit_file:
-        copyfile(haros_tmp_dir + '/haros_data/data/ament_haros_project/compliance/ament_haros_project.xml',
-                 args.xunit_file)
+        copyfile(xunit_file, args.xunit_file)
     #
     return rc
 # ^ def main()

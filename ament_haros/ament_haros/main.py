@@ -109,13 +109,13 @@ def main(argv=sys.argv[1:]):
     #    print("Could not find 'haros' executable", file=sys.stderr)
     #    return 1
     #cmd = [haros_bin]
-    # ^ TODO: the official release of HAROS is not yet compatible with ROS2/ament
-    # work spaces. So we'll download a different version for it.
+    # ^ TODO: the pip release of HAROS is not yet compatible with ROS2/ament
+    # work spaces. So we'll download the latest version from github.
     download_cmd = [
         "wget",
         "-O",
-        haros_tmp_dir + "/haros_ros2-support.zip",
-        "https://github.com/esol-community/haros/archive/ros2-support-with-junitxml-improvements.zip"
+        haros_tmp_dir + "/haros.zip",
+        "https://github.com/git-afsantos/haros/archive/master.zip"
     ]
     try:
         p = subprocess.Popen(download_cmd, stderr=subprocess.PIPE)
@@ -128,7 +128,7 @@ def main(argv=sys.argv[1:]):
     unzip_cmd = [
         "unzip",
         "-qq",
-        haros_tmp_dir + "/haros_ros2-support.zip",
+        haros_tmp_dir + "/haros.zip",
         "-d",
         haros_tmp_dir
     ]
@@ -140,7 +140,7 @@ def main(argv=sys.argv[1:]):
               (e.returncode, e), file=sys.stderr)
         return 1
     #
-    cmd = [which('python2'), haros_tmp_dir + '/haros-ros2-support-with-junitxml-improvements/haros-runner.py']
+    cmd = [which('python2'), haros_tmp_dir + '/haros-master/haros-runner.py']
     workspace_dir = os.path.abspath(args.paths[0])
     # If we were pointed at a package folder,
     # find the ROS2 workspace root.

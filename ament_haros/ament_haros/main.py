@@ -141,20 +141,21 @@ def main(argv=sys.argv[1:]):
         return 1
     #
     cmd = [which('python2'), haros_tmp_dir + '/haros-master/haros-runner.py']
-    workspace_dir = os.path.abspath(args.paths[0])
+    package_dir = os.path.abspath(args.paths[0])
     # If we were pointed at a package folder,
     # find the ROS2 workspace root.
     try:
-        workspace_dir = workspace_dir[0:workspace_dir.rindex('/src/')]
+        workspace_dir = package_dir[0:package_dir.rindex('/src/')]
     except ValueError:
         # Check if we are already in the workspace root directory.
-        if os.path.exists(workspace_dir + '/src/') == False:
+        if os.path.exists(package_dir + '/src/') == False:
             print("Failed to detect ROS workspace root folder",
                   file=sys.stderr)
             return 1
         # else: workspace_dir is already the workspace root directory
+        workspace_dir = package_dir
     #
-    packages = find_ros_packages(os.path.abspath(args.paths[0]))
+    packages = find_ros_packages(package_dir)
     if len(packages) == 0:
         print("Failed to find any ROS packages to analyze",
               file=sys.stderr)

@@ -35,7 +35,8 @@ int main(int argc, char * argv[])
 
   while (rclcpp::ok())
   {
-    msg->data = "beep " + std::to_string(i++);
+    msg->data = "beep " + std::to_string(i);
+    i++;
     pub->publish(msg);
     rclcpp::spin_some(node);
     loop_rate.sleep();

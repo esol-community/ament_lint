@@ -216,11 +216,24 @@ def main(argv=sys.argv[1:]):
             f.write('    - %s\n' % p)
         #
     #
+    # Generate HAROS configs.yaml file to customize our analysis
+    with open(os.path.join(haros_home_dir, 'configs.yaml'), "w") as f:
+        f.write('%YAML 1.1\n')
+        f.write('---\n')
+        f.write('workspace: "%s"\n' % workspace_dir)
+        # Ignore conflicting or meaningless linter rules
+        f.write('analysis:\n')
+        f.write('    ignore:\n')
+        f.write('        rules: [')
+        # cpplint rules about opening curly braces contradict another
+        f.write('"haros_plugin_cpplint:opening_curly_brace", ')
+        f.write('"haros_plugin_cpplint:opening_brace_line" ]\n')
+    #
 
-    cmd.extend(['--cwd',
-                workspace_dir])
-    cmd.extend(['--home',
-                os.path.join(haros_tmp_dir,'haros_home')])
+    cmd.extend(['--cwd', workspace_dir])
+    cmd.extend(['--home', haros_home_dir])
+    cmd.extend(['--config',
+                os.path.join(haros_home_dir, 'configs.yaml')])
     cmd.extend(['analyse'])
     cmd.extend(['--project-file',
                 os.path.join(haros_tmp_dir, project_name+'.yaml')])
@@ -279,7 +292,7 @@ def main(argv=sys.argv[1:]):
     if args.xunit_file:
         copyfile(xunit_file, args.xunit_file)
     #
-    
+
     if args.report_dir:
         report_dir = os.path.abspath(args.report_dir)
         # To preserve history, check if the target desination

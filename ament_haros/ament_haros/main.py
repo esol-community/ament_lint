@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2014-2015 Open Source Robotics Foundation, Inc.
+# Copyright 2019 eSOL Co.,Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import sys
 import time
 import json
 import re
+import tempfile
 from xml.etree.cElementTree import ElementTree
 
 def find_ros_packages(path, as_stack = False):
@@ -65,6 +66,8 @@ def find_ros_packages(path, as_stack = False):
     return resources
 # ^ def find_ros_packages(path)
 
+
+
 def main(argv=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         description='Perform static code analysis using HAROS.',
@@ -76,18 +79,26 @@ def main(argv=sys.argv[1:]):
         help='Files and/or directories to be checked. '
              'Directories are searched recursively for ROS/ROS2 package(s)')
     parser.add_argument(
+        '--cache-dir',
+        metavar='cache',
+        default=tempfile.gettempdir(),
+        dest='cache_dir',
+        help='The location HAROS will place its cache in. '
+             'Defaults to system temp folder'
+    )
+    parser.add_argument(
         '--xunit-file',
         help='Generate a xunit compliant XML file')
     args = parser.parse_args(argv)
 
     # Prepare a temporary directory for running HAROS
-    haros_tmp_dir = '/tmp/ament_haros'
+    haros_tmp_dir = os.path.join(args.cache_dir, 'ament_haros')
     try:
         if os.path.exists(haros_tmp_dir):
             rmtree(haros_tmp_dir)
         os.mkdir(haros_tmp_dir)
-        os.mkdir(haros_tmp_dir + '/haros_home')
-        os.mkdir(haros_tmp_dir + '/haros_data')
+        os.mkdir(os.path.join(haros_tmp_dir, 'haros_home'))
+        os.mkdir(os.path.join(haros_tmp_dir, 'haros_data'))
     except:
         print("Trying to create a HAROS tmp folders failed.")
         return 1
@@ -129,7 +140,7 @@ def main(argv=sys.argv[1:]):
     download_cmd = [
         "wget",
         "-O",
-        haros_tmp_dir + "/haros.zip",
+        os.path.join(haros_tmp_dir, "haros.zip"),
         "https://github.com/git-afsantos/haros/archive/master.zip"
     ]
     try:
@@ -143,7 +154,7 @@ def main(argv=sys.argv[1:]):
     unzip_cmd = [
         "unzip",
         "-qq",
-        haros_tmp_dir + "/haros.zip",
+        os.path.join(haros_tmp_dir, "haros.zip"),
         "-d",
         haros_tmp_dir
     ]
@@ -155,8 +166,11 @@ def main(argv=sys.argv[1:]):
               (e.returncode, e), file=sys.stderr)
         return 1
     #
-    cmd = [python_bin, haros_tmp_dir + '/haros-master/haros-runner.py']
+    cmd = [python_bin,
+           os.path.join(haros_tmp_dir, 'haros-master', 'haros-runner.py')]
     package_dir = os.path.abspath(args.paths[0])
+    # ^ TODO: Is it possible we could receive multiple paths?
+
     # If we were pointed at a package folder,
     # find the ROS2 workspace root.
     try:
@@ -177,23 +191,33 @@ def main(argv=sys.argv[1:]):
         return 1
     #
     # Generate HAROS project.yaml file to direct HAROS to the package/project
-    with open(haros_tmp_dir + '/ament_haros_project.yaml', "w") as f:
+    if len(packages) == 1:
+        project_name = next(iter(packages)) # key is package name
+    else:
+        # somehow there were several packages in the folder
+        # so let't use the folder name
+        project_name = os.path.basename(package_dir)
+        # ^ TODO: won't work when path ends with a '/'
+    with open(os.path.join(haros_tmp_dir, project_name+'.yaml'), "w") as f:
         f.write('%YAML 1.1\n')
         f.write('---\n')
-        f.write('project: ament_haros_project\n')
+        f.write('project: '+project_name+'\n')
         f.write('packages:\n')
         for p in packages:
             f.write('    - %s\n' % p)
         #
     #
 
-    cmd.extend(['--cwd', workspace_dir]) # TODO: Support multiple paths.
-    cmd.extend(['--home', haros_tmp_dir + '/haros_home'])
+    cmd.extend(['--cwd',
+                workspace_dir])
+    cmd.extend(['--home',
+                os.path.join(haros_tmp_dir,'haros_home')])
     cmd.extend(['analyse'])
-    cmd.extend(['--project-file', haros_tmp_dir + '/ament_haros_project.yaml'])
-    cmd.extend(['--data-dir', haros_tmp_dir + '/haros_data'])
+    cmd.extend(['--project-file',
+                os.path.join(haros_tmp_dir, project_name+'.yaml')])
+    cmd.extend(['--data-dir',
+                os.path.join(haros_tmp_dir, 'haros_data')])
     cmd.extend(['--junit-xml-output'])
-    # print(*cmd)
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output, error = p.communicate()
@@ -204,7 +228,14 @@ def main(argv=sys.argv[1:]):
     #
 
     # Check if the output XML file is written
-    xunit_file = haros_tmp_dir + '/haros_data/data/ament_haros_project/compliance/ament_haros_project.xml'
+    xunit_file = os.path.join(
+        haros_tmp_dir,
+        'haros_data',
+        'data',
+        project_name,
+        'compliance',
+        project_name+'.xml'
+    )
     if not os.path.exists(xunit_file):
         print("HAROS failed to write xUnit (XML) output file")
         return 1

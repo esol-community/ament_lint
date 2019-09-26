@@ -17,13 +17,14 @@
 import argparse
 from collections import defaultdict
 import os
-from shutil import which, rmtree, copyfile
+from shutil import which, rmtree, copyfile, copytree
 import subprocess
 import sys
 import time
 import json
 import re
 import tempfile
+import json
 from xml.etree.cElementTree import ElementTree
 
 def find_ros_packages(path, as_stack = False):
@@ -84,21 +85,29 @@ def main(argv=sys.argv[1:]):
         default=tempfile.gettempdir(),
         dest='cache_dir',
         help='The location HAROS will place its cache in. '
-             'Defaults to system temp folder'
-    )
+             'Defaults to system temp folder')
     parser.add_argument(
         '--xunit-file',
         help='Generate a xunit compliant XML file')
+    parser.add_argument(
+        '--report-dir',
+        default=None,
+        dest='report_dir',
+        help='The location to export the HAROS html report to '
+             '(if desired).')
+
     args = parser.parse_args(argv)
 
     # Prepare a temporary directory for running HAROS
     haros_tmp_dir = os.path.join(args.cache_dir, 'ament_haros')
+    haros_home_dir = os.path.join(haros_tmp_dir, 'haros_home')
+    haros_data_dir = os.path.join(haros_tmp_dir, 'haros_data')
     try:
         if os.path.exists(haros_tmp_dir):
             rmtree(haros_tmp_dir)
-        os.mkdir(haros_tmp_dir)
-        os.mkdir(os.path.join(haros_tmp_dir, 'haros_home'))
-        os.mkdir(os.path.join(haros_tmp_dir, 'haros_data'))
+        os.makedirs(haros_tmp_dir, exist_ok=True)
+        os.makedirs(haros_home_dir, exist_ok=True)
+        os.makedirs(haros_data_dir, exist_ok=True)
     except:
         print("Trying to create a HAROS tmp folders failed.")
         return 1
@@ -215,8 +224,7 @@ def main(argv=sys.argv[1:]):
     cmd.extend(['analyse'])
     cmd.extend(['--project-file',
                 os.path.join(haros_tmp_dir, project_name+'.yaml')])
-    cmd.extend(['--data-dir',
-                os.path.join(haros_tmp_dir, 'haros_data')])
+    cmd.extend(['--data-dir', haros_data_dir])
     cmd.extend(['--junit-xml-output'])
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -229,8 +237,7 @@ def main(argv=sys.argv[1:]):
 
     # Check if the output XML file is written
     xunit_file = os.path.join(
-        haros_tmp_dir,
-        'haros_data',
+        haros_data_dir,
         'data',
         project_name,
         'compliance',
@@ -272,6 +279,41 @@ def main(argv=sys.argv[1:]):
     if args.xunit_file:
         copyfile(xunit_file, args.xunit_file)
     #
+    
+    if args.report_dir:
+        report_dir = os.path.abspath(args.report_dir)
+        # To preserve history, check if the target desination
+        # already contains a data/<package_name>/summary.json
+        # file, and if so, merge its 'history' entry with the
+        # summary.json created in this report.
+        summary_file = os.path.join(report_dir,
+                                    'data',
+                                    project_name,
+                                    'summary.json')
+        history = None
+        if os.path.exists(summary_file):
+            with open(summary_file, 'r') as f:
+                summary = json.load(f)
+                history = summary.get('history')
+        # Remove the old report if there is one:
+        if os.path.exists(report_dir):
+            rmtree(report_dir)
+        if not os.path.exists(os.path.basename(report_dir)):
+            os.makedirs(os.path.basename(report_dir))
+        # Copy the report to destination.
+        copytree(haros_data_dir, report_dir)
+        # Restore history.
+        if history:
+            with open(summary_file, 'r') as f:
+                summary = json.load(f)
+            for item, values in history.items():
+                summary['history'][item] = values + summary['history'][item]
+            with open(summary_file, "w") as f:
+                json.dump(summary, f, indent=2, separators=(",", ":"))
+            #
+        # ^ if history
+    # ^ if args.report_dir
+
     return rc
 # ^ def main()
 

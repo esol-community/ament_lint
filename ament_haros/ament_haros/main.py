@@ -22,9 +22,7 @@ import subprocess
 import sys
 import time
 import json
-#from xml.etree import ElementTree
-#from xml.sax.saxutils import escape
-#from xml.sax.saxutils import quoteattr
+import re
 from xml.etree.cElementTree import ElementTree
 
 def find_ros_packages(path, as_stack = False):
@@ -68,30 +66,21 @@ def find_ros_packages(path, as_stack = False):
 # ^ def find_ros_packages(path)
 
 def main(argv=sys.argv[1:]):
-    extensions = ['c', 'cc', 'cpp', 'cxx', 'h', 'hh', 'hpp', 'hxx']
-
     parser = argparse.ArgumentParser(
-        description='Perform static code analysis using cppcheck.',
+        description='Perform static code analysis using HAROS.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         'paths',
         nargs='*',
         default=[os.curdir],
-        help='Files and/or directories to be checked. Directories are searched recursively for '
-             'files ending in one of %s.' %
-             ', '.join(["'.%s'" % e for e in extensions]))
-    parser.add_argument(
-        '--include_dirs',
-        nargs='*',
-        help="Include directories for C/C++ files being checked."
-             "Each directory is passed to cppcheck as '-I <include_dir>'")
-    # not using a file handle directly
-    # in order to prevent leaving an empty file when something fails early
+        help='Files and/or directories to be checked. '
+             'Directories are searched recursively for ROS/ROS2 package(s)')
     parser.add_argument(
         '--xunit-file',
         help='Generate a xunit compliant XML file')
     args = parser.parse_args(argv)
 
+    # Prepare a temporary directory for running HAROS
     haros_tmp_dir = '/tmp/ament_haros'
     try:
         if os.path.exists(haros_tmp_dir):
@@ -104,10 +93,81 @@ def main(argv=sys.argv[1:]):
         return 1
     #
 
-    #haros_bin = which('haros')
-    #if not haros_bin:
-    #    print("Could not find 'haros' executable", file=sys.stderr)
-    #    return 1
+    # Prepare a virtual environment with HAROS installed
+    python_bin = which('python2')
+    if not python_bin:
+        print("Could not find 'python2' executable - python2.x not installed",
+              file=sys.stderr)
+        return 1
+    pip_bin = which('pip')
+    if not pip_bin:
+        print("Could not find 'pip' executable - pip not installed",
+              file=sys.stderr)
+        return 1
+    venv_bin = which('virtualenv')
+    if not venv_bin:
+        # try to install it
+        try:
+            p = subprocess.Popen([pip_bin, 'install', 'virtualenv'],
+                                 stderr=subprocess.PIPE)
+            output = p.communicate()[1]
+        except subprocess.CalledProcessError as e:
+            print("Trying to install virtualenv failed %d: %s" %
+                  (e.returncode, e), file=sys.stderr)
+            return 1
+        # since we may run pip as non-root,
+        # the package may be installed in the users' site packages folder
+        try:
+            venv_info = subprocess.check_output([pip_bin, 'show', 'virtualenv']).decode('utf-8')
+            venv_loc = re.search("Location: (.*)", venv_info).group(1)
+            venv_bin = venv_loc + '/virtualenv'
+        except:
+            print("Trying to find virtualenv installation failed", file=sys.stderr)
+            return 1
+        #
+    #
+    try:
+        p = subprocess.Popen(
+            [
+                python_bin,
+                venv_bin,
+                '-p',
+                python_bin,
+                haros_tmp_dir + '/venv'
+            ],
+            stderr=subprocess.PIPE
+        )
+        output = p.communicate()[1]
+    except subprocess.CalledProcessError as e:
+        print("Trying to create virtual environment failed: %d: %s" %
+              (e.returncode, e), file=sys.stderr)
+        return 1
+    #
+    try:
+        p = subprocess.Popen(['bash', '-c', "'source "+haros_tmp_dir+"/venv/bin/activate'"],
+            stderr=subprocess.PIPE
+        )
+        output = p.communicate()[1]
+    except subprocess.CalledProcessError as e:
+        print("Trying to activate virtual environment failed: %d: %s" %
+              (e.returncode, e), file=sys.stderr)
+        return 1
+    #
+    try:
+        p = subprocess.Popen(['pip', 'install', 'haros', 'haros-plugins'],
+            stderr=subprocess.PIPE
+        )
+        output = p.communicate()[1]
+    except subprocess.CalledProcessError as e:
+        print("Failed to install haros and plugins: %d: %s" %
+              (e.returncode, e), file=sys.stderr)
+        return 1
+    #
+    haros_bin = which('haros')
+    if not haros_bin:
+        print("Could not find 'haros' executable", file=sys.stderr)
+        return 1
+
     #cmd = [haros_bin]
     # ^ TODO: the pip release of HAROS is not yet compatible with ROS2/ament
     # work spaces. So we'll download the latest version from github.
@@ -140,7 +200,7 @@ def main(argv=sys.argv[1:]):
               (e.returncode, e), file=sys.stderr)
         return 1
     #
-    cmd = [which('python2'), haros_tmp_dir + '/haros-master/haros-runner.py']
+    cmd = [python_bin, haros_tmp_dir + '/haros-master/haros-runner.py']
     package_dir = os.path.abspath(args.paths[0])
     # If we were pointed at a package folder,
     # find the ROS2 workspace root.

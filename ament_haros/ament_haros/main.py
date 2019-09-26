@@ -99,75 +99,30 @@ def main(argv=sys.argv[1:]):
         print("Could not find 'python2' executable - python2.x not installed",
               file=sys.stderr)
         return 1
-    pip_bin = which('pip')
-    if not pip_bin:
-        print("Could not find 'pip' executable - pip not installed",
-              file=sys.stderr)
-        return 1
-    venv_bin = which('virtualenv')
-    if not venv_bin:
-        # try to install it
-        try:
-            p = subprocess.Popen([pip_bin, 'install', 'virtualenv'],
-                                 stderr=subprocess.PIPE)
-            output = p.communicate()[1]
-        except subprocess.CalledProcessError as e:
-            print("Trying to install virtualenv failed %d: %s" %
-                  (e.returncode, e), file=sys.stderr)
-            return 1
-        # since we may run pip as non-root,
-        # the package may be installed in the users' site packages folder
-        try:
-            venv_info = subprocess.check_output([pip_bin, 'show', 'virtualenv']).decode('utf-8')
-            venv_loc = re.search("Location: (.*)", venv_info).group(1)
-            venv_bin = venv_loc + '/virtualenv'
-        except:
-            print("Trying to find virtualenv installation failed", file=sys.stderr)
-            return 1
-        #
-    #
-    try:
-        p = subprocess.Popen(
-            [
-                python_bin,
-                venv_bin,
-                '-p',
-                python_bin,
-                haros_tmp_dir + '/venv'
-            ],
-            stderr=subprocess.PIPE
-        )
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Trying to create virtual environment failed: %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
-    try:
-        p = subprocess.Popen(['bash', '-c', "'source "+haros_tmp_dir+"/venv/bin/activate'"],
-            stderr=subprocess.PIPE
-        )
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Trying to activate virtual environment failed: %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
-    try:
-        p = subprocess.Popen(['pip', 'install', 'haros', 'haros-plugins'],
-            stderr=subprocess.PIPE
-        )
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Failed to install haros and plugins: %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
     haros_bin = which('haros')
     if not haros_bin:
-        print("Could not find 'haros' executable", file=sys.stderr)
-        return 1
-
+        # try to install it
+        pip_bin = which('pip')
+        if not pip_bin:
+            print("Could not find 'pip' executable - pip not installed",
+                  file=sys.stderr)
+            return 1
+        try:
+            p = subprocess.Popen([pip_bin, 'install', 'haros', 'haros-plugins'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            output = p.communicate()[1]
+        except subprocess.CalledProcessError as e:
+            print("Failed to install haros and plugins: %d: %s" %
+                  (e.returncode, e), file=sys.stderr)
+            return 1
+        haros_bin = which('haros')
+        if not haros_bin:
+            print("Failed to install HAROS",
+                  file=sys.stderr)
+            return 1
+    #
+    
     #cmd = [haros_bin]
     # ^ TODO: the pip release of HAROS is not yet compatible with ROS2/ament
     # work spaces. So we'll download the latest version from github.

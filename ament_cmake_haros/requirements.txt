@@ -1,2 +1,4 @@
-haros==3.6.0
+haros==3.7.0
+haros-plugins==1.0.5
+bonsai-code==0.4.11
 pyflwor-ext==1.2

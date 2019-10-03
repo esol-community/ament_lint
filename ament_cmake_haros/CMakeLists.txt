@@ -10,7 +10,9 @@ find_package(ament_cmake_virtualenv REQUIRED)
 install(FILES requirements.txt
   DESTINATION ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}
 )
-ament_generate_virtualenv()
+ament_generate_virtualenv(
+  PYTHON_VERSION 2
+)
 
 # Build package and provide cmake files to client package.
 ament_package(

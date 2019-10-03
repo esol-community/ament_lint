@@ -1,4 +1,4 @@
-# Copyright 2014-2015 Open Source Robotics Foundation, Inc.
+# Copyright 2019 eSol, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,16 +15,8 @@
 #
 # Add a test to perform static code analysis with HAROS.
 #
-# The include dirs for haros to consider can either be set by the function
-# parameter 'INCLUDE_DIRS` or by a global variable called
-# 'ament_cmake_haros_ADDITIONAL_INCLUDE_DIRS'.
-#
 # :param TESTNAME: the name of the test, default: "haros"
 # :type TESTNAME: string
-# :param LANGUAGE: the language argument for HAROS, either 'c' or 'c++'
-# :type LANGUAGE: string
-# :param INCLUDE_DIRS: an optional list of include paths for HAROS
-# :type INCLUDE_DIRS: list
 # :param ARGN: the files or directories to check
 # :type ARGN: list of strings
 #

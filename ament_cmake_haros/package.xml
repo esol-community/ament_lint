@@ -4,8 +4,7 @@
   <name>ament_cmake_haros</name>
   <version>0.0.1</version>
   <description>
-    The CMake API for ament_haros to perform static code analysis
-    code using HAROS.
+    The CMake API for ament_haros to perform static code analysis code using HAROS.
   </description>
   <maintainer email="v-krichenbauer7715@esol.co.jp">Max Krichenbauer</maintainer>
   <license>Apache License 2.0</license>
@@ -16,11 +15,13 @@
   <buildtool_export_depend>ament_cmake_core</buildtool_export_depend>
   <buildtool_export_depend>ament_cmake_test</buildtool_export_depend>
   <buildtool_export_depend>ament_haros</buildtool_export_depend>
+  <buildtool_export_depend>ament_cmake_virtualenv</buildtool_export_depend>
 
   <test_depend>ament_cmake_copyright</test_depend>
   <test_depend>ament_cmake_lint_cmake</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
+    <pip_requirements>requirements.txt</pip_requirements>
   </export>
 </package>

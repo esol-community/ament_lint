@@ -14,11 +14,12 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
-add_executable(ament_haros_main main.cpp)
-ament_target_dependencies(ament_haros_main rclcpp std_msgs)
+add_executable(ament_haros_test_main main.cpp)
+ament_target_dependencies(ament_haros_test_main rclcpp std_msgs)
 
-install(TARGETS ament_haros_main
-  DESTINATION lib/${PROJECT_NAME})
+install(TARGETS ament_haros_test_main
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
     find_package(ament_cmake_haros REQUIRED)

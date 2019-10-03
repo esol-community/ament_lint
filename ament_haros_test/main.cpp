@@ -1,4 +1,4 @@
-// Copyright 2019 eSOL Co.,Ltd.
+// Copyright 2016 Open Source Robotics Foundation, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,35 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <iostream>
+#include <chrono>
 #include <memory>
-#include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
 
+#include "rclcpp/rclcpp.hpp"
+
+using namespace std::chrono_literals;
+
+/* This example creates a subclass of Node and uses std::bind() to register a
+ * member function as a callback from the timer. */
+
+class MinimalTimer : public rclcpp::Node
+{
+public:
+  MinimalTimer()
+  : Node("minimal_timer")
+  {
+    timer_ = create_wall_timer(
+      500ms, std::bind(&MinimalTimer::timer_callback, this));
+  }
+
+private:
+  void timer_callback()
+  {
+    RCLCPP_INFO(this->get_logger(), "Hello, world!");
+  }
+  rclcpp::TimerBase::SharedPtr timer_;
+};
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  auto node = rclcpp::Node::make_shared("ament_haros_test");
-  rmw_qos_profile_t custom_qos_profile = rmw_qos_profile_default;
-  custom_qos_profile.depth = 7;
-  auto pub = node->create_publisher<std_msgs::msg::String>(
-    "ament_haros_test",
-    custom_qos_profile);
-
-  rclcpp::WallRate loop_rate(2);
-
-  auto msg = std::make_shared<std_msgs::msg::String>();
-  auto i = 1;
-
-  while (rclcpp::ok())
-  {
-    msg->data = "beep " + std::to_string(i);
-    i++;
-    pub->publish(msg);
-    rclcpp::spin_some(node);
-    loop_rate.sleep();
-  }
-
+  rclcpp::spin(std::make_shared<MinimalTimer>());
+  rclcpp::shutdown();
   return 0;
 }

@@ -175,6 +175,41 @@ def main(argv=sys.argv[1:]):
               (e.returncode, e), file=sys.stderr)
         return 1
     #
+
+    # we also need the latest version of bonsai
+    download_cmd = [
+        "wget",
+        "-O",
+        os.path.join(haros_tmp_dir, "bonsai.zip"),
+        "https://github.com/git-afsantos/bonsai/archive/master.zip"
+    ]
+    try:
+        p = subprocess.Popen(download_cmd, stderr=subprocess.PIPE)
+        output = p.communicate()[1]
+    except subprocess.CalledProcessError as e:
+        print("Trying to download bonsai failed with error code %d: %s" %
+              (e.returncode, e), file=sys.stderr)
+        return 1
+    #
+    unzip_cmd = [
+        "unzip",
+        "-qq",
+        os.path.join(haros_tmp_dir, "bonsai.zip"),
+        "-d",
+        haros_tmp_dir
+    ]
+    try:
+        p = subprocess.Popen(unzip_cmd, stderr=subprocess.PIPE)
+        output = p.communicate()[1]
+    except subprocess.CalledProcessError as e:
+        print("Trying to unzip bonsai failed with error code %d: %s" %
+              (e.returncode, e), file=sys.stderr)
+        return 1
+    #
+    if not (haros_tmp_dir+'/bonsai-master/') in os.environ['PYTHONPATH']:
+        os.putenv('PYTHONPATH', haros_tmp_dir+'/bonsai-master/:' + os.getenv('PYTHONPATH'))
+    #
+
     cmd = [python_bin,
            os.path.join(haros_tmp_dir, 'haros-master', 'haros-runner.py')]
     package_dir = os.path.abspath(args.paths[0])

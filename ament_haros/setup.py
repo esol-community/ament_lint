@@ -1,9 +1,26 @@
 from setuptools import find_packages
 from setuptools import setup
+import setuptools.command.install
+import ament_virtualenv.install
+
+package_name = 'test_ament_virtualenv'
+
+class InstallCommand(setuptools.command.install.install):
+    def run(self):
+        super().run()
+        ament_virtualenv.install.install_venv(
+            install_base=self.install_base,
+            package_name=package_name,
+            python_version='2'
+        )
+        return
 
 package_name = 'ament_haros'
 
 setup(
+    cmdclass={
+        'install': InstallCommand
+    },
     name=package_name,
     version='0.0.1',
     packages=find_packages(exclude=['test']),

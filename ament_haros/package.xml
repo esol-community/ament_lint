@@ -10,12 +10,11 @@
   <maintainer email="v-krichenbauer7715@esol.co.jp">Max Krichenbauer</maintainer>
   <license>Apache License 2.0</license>
 
-  <!-- OVERRIDE: Using a manual download of HAROS for testing
-  <exec_depend>haros</exec_depend>
-  <exec_depend>haros-plugins</exec_depend>
-  -->
+  <build_depend>ament_virtualenv</build_depend>
+  <test_depend>ament_virtualenv</test_depend>
 
   <export>
     <build_type>ament_python</build_type>
+    <pip_requirements>requirements.txt</pip_requirements>
   </export>
 </package>

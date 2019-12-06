@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # Copyright 2019 eSOL Co.,Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +15,7 @@
 import argparse
 from collections import defaultdict
 import os
-from shutil import which, rmtree, copyfile, copytree
+from shutil import rmtree, copyfile, copytree
 import subprocess
 import sys
 import time
@@ -98,6 +96,17 @@ def main(argv=sys.argv[1:]):
 
     args = parser.parse_args(argv)
 
+    # HACK:
+    # For some reason python adds the venv/ paths
+    # after the global dist-packages paths, which can lead to
+    # python2 / python3 incompabilities (loading the wrong module).
+    # Therefore we sort the paths first and override them
+    # before calling HAROS.
+    sys_path_venv = [p for p in sys.path if 'venv' in p]
+    sys_path_rest = [p for p in sys.path if not p in sys_path_venv]
+    sys.path = sys_path_venv + sys_path_rest
+    os.environ["PYTHONPATH"] = os.pathsep.join(sys.path)
+
     # Prepare a temporary directory for running HAROS
     haros_tmp_dir = os.path.join(args.cache_dir, 'ament_haros')
     haros_home_dir = os.path.join(haros_tmp_dir, 'haros_home')
@@ -105,113 +114,23 @@ def main(argv=sys.argv[1:]):
     try:
         if os.path.exists(haros_tmp_dir):
             rmtree(haros_tmp_dir)
-        os.makedirs(haros_tmp_dir, exist_ok=True)
-        os.makedirs(haros_home_dir, exist_ok=True)
-        os.makedirs(haros_data_dir, exist_ok=True)
+        os.makedirs(haros_tmp_dir)
+        os.makedirs(haros_home_dir)
+        os.makedirs(haros_data_dir)
     except:
-        print("Trying to create a HAROS tmp folders failed.")
+        sys.stderr.write("Trying to create a HAROS tmp folders at "
+                         + haros_tmp_dir + " failed.")
         return 1
     #
 
-    # Prepare a virtual environment with HAROS installed
-    python_bin = which('python2')
-    if not python_bin:
-        print("Could not find 'python2' executable - python2.x not installed",
-              file=sys.stderr)
+    haros_bin = os.path.join(sys.exec_prefix, 'bin', 'haros')
+    if not os.path.exists(haros_bin):
+        # should have been installed 
+        sys.stderr.write("HAROS not found at " + haros_bin)
         return 1
-    haros_bin = which('haros')
-    if not haros_bin:
-        # try to install it
-        pip_bin = which('pip')
-        if not pip_bin:
-            print("Could not find 'pip' executable - pip not installed",
-                  file=sys.stderr)
-            return 1
-        try:
-            p = subprocess.Popen([pip_bin, 'install', 'haros', 'haros-plugins'],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
-            output = p.communicate()[1]
-        except subprocess.CalledProcessError as e:
-            print("Failed to install haros and plugins: %d: %s" %
-                  (e.returncode, e), file=sys.stderr)
-            return 1
-        haros_bin = which('haros')
-        if not haros_bin:
-            print("Failed to install HAROS",
-                  file=sys.stderr)
-            return 1
-    #
+
+    cmd = [haros_bin]
     
-    #cmd = [haros_bin]
-    # ^ TODO: the pip release of HAROS is not yet compatible with ROS2/ament
-    # work spaces. So we'll download the latest version from github.
-    download_cmd = [
-        "wget",
-        "-O",
-        os.path.join(haros_tmp_dir, "haros.zip"),
-        "https://github.com/git-afsantos/haros/archive/master.zip"
-    ]
-    try:
-        p = subprocess.Popen(download_cmd, stderr=subprocess.PIPE)
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Trying to download HAROS failed with error code %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
-    unzip_cmd = [
-        "unzip",
-        "-qq",
-        os.path.join(haros_tmp_dir, "haros.zip"),
-        "-d",
-        haros_tmp_dir
-    ]
-    try:
-        p = subprocess.Popen(unzip_cmd, stderr=subprocess.PIPE)
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Trying to unzip HAROS failed with error code %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
-
-    # we also need the latest version of bonsai
-    download_cmd = [
-        "wget",
-        "-O",
-        os.path.join(haros_tmp_dir, "bonsai.zip"),
-        "https://github.com/git-afsantos/bonsai/archive/master.zip"
-    ]
-    try:
-        p = subprocess.Popen(download_cmd, stderr=subprocess.PIPE)
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Trying to download bonsai failed with error code %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
-    unzip_cmd = [
-        "unzip",
-        "-qq",
-        os.path.join(haros_tmp_dir, "bonsai.zip"),
-        "-d",
-        haros_tmp_dir
-    ]
-    try:
-        p = subprocess.Popen(unzip_cmd, stderr=subprocess.PIPE)
-        output = p.communicate()[1]
-    except subprocess.CalledProcessError as e:
-        print("Trying to unzip bonsai failed with error code %d: %s" %
-              (e.returncode, e), file=sys.stderr)
-        return 1
-    #
-    if not (haros_tmp_dir+'/bonsai-master/') in os.environ['PYTHONPATH']:
-        os.putenv('PYTHONPATH', haros_tmp_dir+'/bonsai-master/:' + os.getenv('PYTHONPATH'))
-    #
-
-    cmd = [python_bin,
-           os.path.join(haros_tmp_dir, 'haros-master', 'haros-runner.py')]
     package_dir = os.path.abspath(args.paths[0])
     # ^ TODO: Is it possible we could receive multiple paths?
 
@@ -222,16 +141,14 @@ def main(argv=sys.argv[1:]):
     except ValueError:
         # Check if we are already in the workspace root directory.
         if os.path.exists(package_dir + '/src/') == False:
-            print("Failed to detect ROS workspace root folder",
-                  file=sys.stderr)
+            sys.stderr.write("Failed to detect ROS workspace root folder")
             return 1
         # else: workspace_dir is already the workspace root directory
         workspace_dir = package_dir
     #
     packages = find_ros_packages(package_dir)
     if len(packages) == 0:
-        print("Failed to find any ROS packages to analyze",
-              file=sys.stderr)
+        sys.stderr.write("Failed to find any ROS packages to analyze")
         return 1
     #
     # Generate HAROS project.yaml file to direct HAROS to the package/project
@@ -275,11 +192,11 @@ def main(argv=sys.argv[1:]):
     cmd.extend(['--data-dir', haros_data_dir])
     cmd.extend(['--junit-xml-output'])
     try:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(cmd) # , stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output, error = p.communicate()
     except subprocess.CalledProcessError as e:
-        print("The invocation of 'haros' failed with error code %d: %s" %
-              (e.returncode, e), file=sys.stderr)
+        sys.stderr.write("The invocation of 'haros' failed with error code %d: %s" %
+              (e.returncode, e))
         return 1
     #
 
@@ -292,7 +209,7 @@ def main(argv=sys.argv[1:]):
         project_name+'.xml'
     )
     if not os.path.exists(xunit_file):
-        print("HAROS failed to write xUnit (XML) output file")
+        sys.stderr.write("HAROS failed to write xUnit (XML) output file")
         return 1
     #
 
@@ -310,8 +227,7 @@ def main(argv=sys.argv[1:]):
             category = data[2][10:] # "Category: [...]"
             file = data[3][6:] # "File: [...]"
             line = data[4][6:] # "Line: [...]"
-            print('[%s:%s]: (%s: %s) %s' % (file, line, severity, id, msg),
-                  file=sys.stderr)
+            sys.stderr.write('[%s:%s]: (%s: %s) %s' % (file, line, severity, id, msg))
             error_count += 1
         # ^ for testcase in testsuite
     # ^ for testsuite in root[0]
@@ -321,7 +237,7 @@ def main(argv=sys.argv[1:]):
         print('No problems found')
         rc = 0
     else:
-        print('%d errors' % error_count, file=sys.stderr)
+        sys.stderr.write('%d errors' % error_count)
         rc = 1
 
     if args.xunit_file:

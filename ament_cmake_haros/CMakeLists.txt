@@ -7,11 +7,9 @@ find_package(ament_cmake_test REQUIRED)
 
 # Use ament_virtualenv to create a Python virtualenv in which to run HAROS.
 find_package(ament_cmake_virtualenv REQUIRED)
+ament_generate_virtualenv(PYTHON_VERSION 2)
 install(FILES requirements.txt
   DESTINATION ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}
-)
-ament_generate_virtualenv(
-  PYTHON_VERSION 2
 )
 
 # Build package and provide cmake files to client package.
